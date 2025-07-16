@@ -1,8 +1,17 @@
 from fastapi import FastAPI
 from app.core.database import engine, Base
 from app.routers import auth
+from fastapi.middleware.cors import CORSMiddleware
+
 
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],           # ou ['https://meu‑site.com']
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.on_event("startup")
 async def startup():
