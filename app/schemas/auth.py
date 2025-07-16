@@ -9,6 +9,7 @@ class LoginResponse(BaseModel):
     idusuario: int
     nome: str
     email: str
+    token: str
 
 class RegisterRequest(BaseModel):
     nome: str
