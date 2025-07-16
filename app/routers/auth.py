@@ -26,7 +26,8 @@ async def login_user(data: LoginRequest, db: AsyncSession = Depends(get_db)):
     if not user or not bcrypt.verify(data.senha, user.senha):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Credenciais inválidas")
 
-    token = create_access_token({"sub": str(user.idusuario), "email": data.email})
+    payload = {"sub": str(user.idusuario), "email": data.email} # payload do JWT sem exp (expiration time)
+    token = create_access_token(payload)
 
     return LoginResponse(
         idusuario=user.idusuario,
