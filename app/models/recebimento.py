@@ -1,0 +1,16 @@
+from sqlalchemy import String, Date, BigInteger, Numeric, var
+from sqlalchemy.orm import Mapped, mapped_column
+from app.core.database import Base
+from datetime import date 
+
+class FactRecebimento(Base):
+    __tablename__ = "factrecebimento"
+
+    idrecebimento: Mapped[int] = mapped_column(primary_key=True)
+    data_receb: Mapped[date] = mapped_column(Date, nullable=False)
+    quant: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    codigo: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    validade: Mapped[date] = mapped_column(Date, nullable=False)
+    preco_de_aquisicao: Mapped[float] = mapped_column(Numeric(precision=10, scale=2), nullable=False)
+    lote: Mapped[str] = mapped_column(String(30), nullable=False)
+    forncecedor: Mapped[str | None] = mapped_column(String(255), nullable=True)

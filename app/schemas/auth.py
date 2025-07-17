@@ -16,3 +16,27 @@ class RegisterRequest(BaseModel):
     senha: str
     datanasc: date | None = None
     dataentrada: date | None = None
+
+class AddProductRequest(BaseModel):
+    codigo: int
+    nome_basico: str
+    nome_modificador: str | None
+    descricao_tecnica: str | None
+    fabricante: str
+    observacoes_adicional: str | None
+    imagem: bytes | None
+    unidade: str
+    preco_de_venda: float | None
+    fragilidade: float | None
+    inserido_por: str
+    rua: int | None    
+    coluna: int | None
+    andar: int | None
+    altura: float | None
+    largura: float | None
+    profundidade: float | None
+    peso: float | None
+
+class AddProductResponse(BaseModel):
+    status_code: int
+    message: str | None
