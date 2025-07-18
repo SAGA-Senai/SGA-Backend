@@ -1,7 +1,6 @@
 from sqlalchemy import String, LargeBinary, Numeric, Boolean, Integer, Float
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
-from fastapi import UploadFile
 
 class DimProduto(Base):
     __tablename__ = "dimproduto"
@@ -15,7 +14,7 @@ class DimProduto(Base):
     imagem: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
     unidade: Mapped[str | None] = mapped_column(String(50), nullable=True)
     preco_de_venda: Mapped[float | None] = mapped_column(Numeric(precision=10, scale=2), nullable=True)
-    fragilidade: Mapped[bool | None] = mapped_column(Boolean, nullable=False)
+    fragilidade: Mapped[bool] = mapped_column(Boolean, nullable=False)
     inserido_por: Mapped[str] = mapped_column(String(255), nullable=False)
     rua: Mapped[int | None] = mapped_column(Integer, nullable=True)
     coluna: Mapped[int | None] = mapped_column(Integer, nullable=True)
@@ -24,3 +23,6 @@ class DimProduto(Base):
     largura: Mapped[float | None] = mapped_column(Float, nullable=True)
     profundidade: Mapped[float | None] = mapped_column(Float, nullable=True)
     peso: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+    # Relacionamento
+    recebimentos: Mapped[list["FactRecebimento"]] = relationship(back_populates="produto")

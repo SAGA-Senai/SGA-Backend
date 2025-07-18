@@ -40,3 +40,24 @@ class AddProductRequest(BaseModel):
 class AddProductResponse(BaseModel):
     status_code: int
     message: str | None
+
+# necessário apenas se o método post de Recebimentos for usado
+# class Receiverequest(BaseModel):
+#     codigo: int
+
+class ReceiveResponse(BaseModel):
+    status_code: int
+    dados: list
+
+class AddReceiptRequest(BaseModel):
+    data_receb: date
+    quant: int
+    codigo: int
+    validade: date
+    preco_de_aquisicao: float
+    lote: str
+    fornecedor: str | None
+
+class AddReceiptResponse(BaseModel):
+    status_code: int
+    mensagem: str
