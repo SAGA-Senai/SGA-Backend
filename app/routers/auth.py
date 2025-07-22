@@ -12,6 +12,7 @@ from app.schemas.auth import RegisterRequest
 from app.schemas.auth import AddProductRequest, AddProductResponse
 from app.schemas.auth import ReceiptResponse, AddReceiptRequest, AddReceiptResponse
 from app.schemas.auth import SaidaResponse, AddSaidaRequest, AddSaidaResponse
+from app.schemas.auth import SaldoResponse
 
 
 router = APIRouter()
@@ -106,7 +107,6 @@ async def recebimento(db: AsyncSession = Depends(get_db), codigo: Optional[int] 
         })
 
     return ReceiptResponse(
-        status_code=200,
         dados=dados
     )
 
@@ -124,7 +124,7 @@ async def recebimento(codigo: int, db: AsyncSession = Depends(get_db)):
         recebimentos = result.scalars().all()
     except Exception as e:
         print("erro:", e)
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, DETAIL="Erro interno, por favor tente novamente mais tarde")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Erro interno, por favor tente novamente mais tarde")
 
     # Converter para JSON
     dados = []
@@ -145,7 +145,6 @@ async def recebimento(codigo: int, db: AsyncSession = Depends(get_db)):
         })
 
     return ReceiptResponse(
-        status_code=200,
         dados=dados
     )
 
@@ -183,7 +182,6 @@ async def recebimento(codigo: int, db: AsyncSession = Depends(get_db)):
 #         })
 
 #     return ReceiveResponse(
-#         status_code=200,
 #         dados=dados
 #     )
 
@@ -229,7 +227,6 @@ async def add_product(data: AddProductRequest, db: AsyncSession = Depends(get_db
         )
 
     return AddProductResponse(
-        status_code=200,
         message="Produto adicionado com sucesso",
     )
 
@@ -262,7 +259,6 @@ async def add_receipt(data: AddReceiptRequest, db: AsyncSession = Depends(get_db
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Erro ao adicionar produto no banco de dados. Erro: {e}")
     
     return AddReceiptResponse(
-        status_code=200,
         message="Recebimento adicionado com sucesso!"
     )
 
@@ -289,13 +285,12 @@ async def issue(db: AsyncSession = Depends(get_db)):
 
     try:
         result = await db.execute(query)
-        saidas = result.scalars().all()
+        saidas = result.all()
     except Exception as e:
         print('erro:', e)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Falha em buscar saídas no banco de dados")
     
     return SaidaResponse(
-        status_code=200,
         dados=saidas
     )
 
@@ -329,7 +324,6 @@ async def issue(codigo: int, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Falha em buscar saídas no banco de dados")
     
     return SaidaResponse(
-        status_code=200,
         dados=saidas
     )
 
@@ -376,6 +370,110 @@ async def add_issue(data: AddSaidaRequest, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Falha ao adicionar saída")
 
     return AddSaidaResponse(
-        status_code=200,
         message="Saída adicionada com sucesso"
     )
+
+@router.get("/saldos", response_model=SaldoResponse)
+async def balance(db: AsyncSession = Depends(get_db)):
+    # CTE para o saldo acumulado
+    saldo_cte = (
+        select(
+            DimProduto.codigo.label("codigo"),
+            DimProduto.nome_basico.label("nome_basico"),
+            FactRecebimento.lote.label("lote"),
+            DimProduto.imagem.label("imagem"),
+            func.to_char(FactRecebimento.validade, "DD/MM/YYYY").label("validade"),
+            func.coalesce(func.sum(FactRecebimento.quant), 0).label("quant_recebimento"),
+            func.coalesce(func.sum(FactSaida.quant), 0).label("quant_saida"),
+        )
+        .join(DimProduto, FactRecebimento.codigo == DimProduto.codigo)
+        .outerjoin(FactSaida, FactRecebimento.codigo == FactSaida.codigo)
+        .group_by(
+            DimProduto.codigo,
+            DimProduto.nome_basico,
+            FactRecebimento.lote,
+            DimProduto.imagem,
+            FactRecebimento.validade,
+        )
+        .cte("SaldoAcumulado")
+    )
+
+    # SELECT final usando a CTE
+    query = (
+        select(
+            saldo_cte.c.codigo,
+            saldo_cte.c.nome_basico,
+            saldo_cte.c.lote,
+            saldo_cte.c.imagem,
+            saldo_cte.c.validade,
+            saldo_cte.c.quant_recebimento,
+            saldo_cte.c.quant_saida,
+            (saldo_cte.c.quant_recebimento - saldo_cte.c.quant_saida).label("saldo"),
+        )
+    )
+
+    try:
+        result = await db.execute(query)
+        saldos = result.mappings().all()
+    except Exception as e:
+        print('erro:', e)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Falha interna do servidor")
+
+    dados = [dict(row) for row in saldos]
+
+    return SaldoResponse(
+        dados=dados
+    )    
+
+@router.get("/saldos/{codigo}", response_model=SaldoResponse)
+async def balance(codigo: int, db: AsyncSession = Depends(get_db)):
+    # CTE para o saldo acumulado
+    saldo_cte = (
+        select(
+            DimProduto.codigo.label("codigo"),
+            DimProduto.nome_basico.label("nome_basico"),
+            FactRecebimento.lote.label("lote"),
+            DimProduto.imagem.label("imagem"),
+            func.to_char(FactRecebimento.validade, "DD/MM/YYYY").label("validade"),
+            func.coalesce(func.sum(FactRecebimento.quant), 0).label("quant_recebimento"),
+            func.coalesce(func.sum(FactSaida.quant), 0).label("quant_saida"),
+        )
+        .join(DimProduto, FactRecebimento.codigo == DimProduto.codigo)
+        .outerjoin(FactSaida, FactRecebimento.codigo == FactSaida.codigo)
+        .group_by(
+            DimProduto.codigo,
+            DimProduto.nome_basico,
+            FactRecebimento.lote,
+            DimProduto.imagem,
+            FactRecebimento.validade,
+        )
+        .cte("SaldoAcumulado")
+    )
+
+    # SELECT final usando a CTE
+    query = (
+        select(
+            saldo_cte.c.codigo,
+            saldo_cte.c.nome_basico,
+            saldo_cte.c.lote,
+            saldo_cte.c.imagem,
+            saldo_cte.c.validade,
+            saldo_cte.c.quant_recebimento,
+            saldo_cte.c.quant_saida,
+            (saldo_cte.c.quant_recebimento - saldo_cte.c.quant_saida).label("saldo"),
+        )
+        .where(saldo_cte.c.codigo == codigo)
+    )
+
+    try:
+        result = await db.execute(query)
+        saldos = result.mappings().one_or_none()
+    except Exception as e:
+        print('erro:', e)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Falha interna do servidor")
+
+    dados = [saldos]
+
+    return SaldoResponse(
+        dados=dados
+    )    

@@ -46,7 +46,6 @@ class AddProductResponse(BaseModel):
 #     codigo: int
 
 class ReceiptResponse(BaseModel):
-    status_code: int
     dados: list
 
 class AddReceiptRequest(BaseModel):
@@ -59,11 +58,9 @@ class AddReceiptRequest(BaseModel):
     fornecedor: str | None
 
 class AddReceiptResponse(BaseModel):
-    status_code: int
     message: str | None
 
 class SaidaResponse(BaseModel):
-    status_code: int
     dados: list
 
 class AddSaidaRequest(BaseModel):
@@ -75,5 +72,7 @@ class AddSaidaRequest(BaseModel):
     inseridoPor: str
 
 class AddSaidaResponse(BaseModel):
-    status_code: int
     message: str | None
+
+class SaldoResponse(BaseModel):
+    dados: list
