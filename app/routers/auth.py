@@ -1,18 +1,18 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func, and_, outerjoin
 from sqlalchemy.orm import joinedload
 from passlib.hash import bcrypt
 from app.core.database import SessionLocal
 from app.models.usuario import DimUsuario
-from app.models.produto import DimProduto
-from app.models.recebimento import FactRecebimento
+from app.models import DimProduto, FactSaida, FactRecebimento
 from app.schemas.auth import LoginRequest, LoginResponse
 from app.schemas.auth import RegisterRequest 
 from app.schemas.auth import AddProductRequest, AddProductResponse
-from app.schemas.auth import ReceiveResponse
-from app.schemas.auth import AddReceiptRequest, AddReceiptResponse
+from app.schemas.auth import ReceiptResponse, AddReceiptRequest, AddReceiptResponse
+from app.schemas.auth import SaidaResponse, AddSaidaRequest, AddSaidaResponse
+
 
 router = APIRouter()
 
@@ -66,7 +66,7 @@ async def register_user(data: RegisterRequest, db: AsyncSession = Depends(get_db
         email=new_user.email
     )
 
-@router.get("/recebimento", response_model=ReceiveResponse)
+@router.get("/recebimento", response_model=ReceiptResponse)
 async def recebimento(db: AsyncSession = Depends(get_db), codigo: Optional[int] = None):
     try:
         if codigo:
@@ -105,13 +105,13 @@ async def recebimento(db: AsyncSession = Depends(get_db), codigo: Optional[int] 
             "FRAGILIDADE": rec.produto.fragilidade
         })
 
-    return ReceiveResponse(
+    return ReceiptResponse(
         status_code=200,
         dados=dados
     )
 
 # apenas com get e path parameter
-@router.get("/recebimento/{codigo}", response_model=ReceiveResponse)
+@router.get("/recebimento/{codigo}", response_model=ReceiptResponse)
 async def recebimento(codigo: int, db: AsyncSession = Depends(get_db)):
     try:
         query = (
@@ -144,7 +144,7 @@ async def recebimento(codigo: int, db: AsyncSession = Depends(get_db)):
             "FRAGILIDADE": rec.produto.fragilidade
         })
 
-    return ReceiveResponse(
+    return ReceiptResponse(
         status_code=200,
         dados=dados
     )
@@ -263,5 +263,119 @@ async def add_receipt(data: AddReceiptRequest, db: AsyncSession = Depends(get_db
     
     return AddReceiptResponse(
         status_code=200,
-        mensagem="Recebimento adicionado com sucesso!"
+        message="Recebimento adicionado com sucesso!"
+    )
+
+@router.get("/saidas", response_model=SaidaResponse)
+async def issue(db: AsyncSession = Depends(get_db)):
+    # Query com ORM
+    query = (
+        select(
+            DimProduto.codigo,
+            DimProduto.nome_basico,
+            DimProduto.fabricante,
+            FactSaida.fornecedor,
+            FactRecebimento.preco_de_aquisicao,
+            DimProduto.imagem,
+            FactSaida.quant,
+            FactRecebimento.lote,
+            func.to_char(FactRecebimento.validade, 'DD/MM/YYYY').label('VALIDADE'),
+            DimProduto.preco_de_venda,
+            DimProduto.fragilidade
+        )
+        .join(DimProduto, FactSaida.codigo == DimProduto.codigo)
+        .join(FactRecebimento, FactSaida.codigo == FactRecebimento.codigo)
+    )
+
+    try:
+        result = await db.execute(query)
+        saidas = result.scalars().all()
+    except Exception as e:
+        print('erro:', e)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Falha em buscar saídas no banco de dados")
+    
+    return SaidaResponse(
+        status_code=200,
+        dados=saidas
+    )
+
+@router.get("/saidas/{codigo}", response_model=SaidaResponse)
+async def issue(codigo: int, db: AsyncSession = Depends(get_db)):
+    # Query com ORM
+    query = (
+        select(
+            DimProduto.codigo,
+            DimProduto.nome_basico,
+            DimProduto.fabricante,
+            FactSaida.fornecedor,
+            FactRecebimento.preco_de_aquisicao,
+            DimProduto.imagem,
+            FactSaida.quant,
+            FactRecebimento.lote,
+            func.to_char(FactRecebimento.validade, 'DD/MM/YYYY').label('VALIDADE'),
+            DimProduto.preco_de_venda,
+            DimProduto.fragilidade
+        )
+        .join(DimProduto, FactSaida.codigo == DimProduto.codigo)
+        .join(FactRecebimento, FactSaida.codigo == FactRecebimento.codigo)
+        .where(FactSaida.codigo == codigo)
+    )
+
+    try:
+        result = await db.execute(query)
+        saidas = result.scalars().all()
+    except Exception as e:
+        print('erro:', e)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Falha em buscar saídas no banco de dados")
+    
+    return SaidaResponse(
+        status_code=200,
+        dados=saidas
+    )
+
+@router.post("/adicionar-saida", response_model=AddSaidaResponse)
+async def add_issue(data: AddSaidaRequest, db: AsyncSession = Depends(get_db)):
+    # checar se há quantidade disponível para sair
+    
+    join_stmt = outerjoin(
+        FactRecebimento,
+        FactSaida,
+        and_(
+            FactRecebimento.lote == FactSaida.lote,
+            FactRecebimento.codigo == FactSaida.codigo,
+            FactRecebimento.fornecedor == FactSaida.fornecedor
+        )
+    )
+
+    query = (
+        select(
+            (
+                func.coalesce(func.sum(FactRecebimento.quant), 0)
+                - func.coalesce(func.sum(FactSaida.quant), 0)
+            ).label("estoque_disponivel")
+        )
+        .select_from(join_stmt)
+        .where(
+            and_(
+                FactRecebimento.lote == data.numbLote,
+                FactRecebimento.codigo == data.codigo,
+                FactRecebimento.fornecedor == data.fornecedor
+            )
+        )
+    )
+
+
+    try: 
+        result = await db.execute(query)
+        quantidade_disponivel = result.scalars().all()
+
+        # print(quantidade_disponivel)
+
+    except Exception as e:
+        print('erro:', e)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Falha ao adicionar saída")
+
+    return AddSaidaResponse(
+        status_code=200,
+        message="Saída adicionada com sucesso"
     )
