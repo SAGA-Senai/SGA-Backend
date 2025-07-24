@@ -17,36 +17,9 @@ class RegisterRequest(BaseModel):
     datanasc: date | None = None
     dataentrada: date | None = None
 
-class AddProductRequest(BaseModel):
-    codigo: int
-    nome_basico: str
-    nome_modificador: str | None
-    descricao_tecnica: str | None
-    fabricante: str
-    observacoes_adicional: str | None
-    imagem: bytes | None
-    unidade: str
-    preco_de_venda: float | None
-    fragilidade: float | None
-    inserido_por: str
-    rua: int | None    
-    coluna: int | None
-    andar: int | None
-    altura: float | None
-    largura: float | None
-    profundidade: float | None
-    peso: float | None
-
-class AddProductResponse(BaseModel):
-    status_code: int
-    message: str | None
-
 # necessário apenas se o método post de Recebimentos for usado
 # class Receiverequest(BaseModel):
 #     codigo: int
-
-class ReceiptResponse(BaseModel):
-    dados: list
 
 class AddReceiptRequest(BaseModel):
     data_receb: date
@@ -60,19 +33,16 @@ class AddReceiptRequest(BaseModel):
 class AddReceiptResponse(BaseModel):
     message: str | None
 
-class SaidaResponse(BaseModel):
-    dados: list
-
 class AddSaidaRequest(BaseModel):
     fornecedor: str
     codigo: int
     quantidade: int
     numbLote: str
-    dataRecebimento: date
-    inseridoPor: str
+    data_saida: date
+    # inseridoPor: str
 
 class AddSaidaResponse(BaseModel):
     message: str | None
 
-class SaldoResponse(BaseModel):
+class DataResponse(BaseModel):
     dados: list

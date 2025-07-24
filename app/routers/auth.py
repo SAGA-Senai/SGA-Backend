@@ -8,11 +8,11 @@ from app.core.database import SessionLocal
 from app.models.usuario import DimUsuario
 from app.models import DimProduto, FactSaida, FactRecebimento
 from app.schemas.auth import LoginRequest, LoginResponse
-from app.schemas.auth import RegisterRequest 
-from app.schemas.auth import AddProductRequest, AddProductResponse
-from app.schemas.auth import ReceiptResponse, AddReceiptRequest, AddReceiptResponse
-from app.schemas.auth import SaidaResponse, AddSaidaRequest, AddSaidaResponse
-from app.schemas.auth import SaldoResponse
+from app.schemas.auth import RegisterRequest
+from app.schemas.auth import DataResponse
+from app.schemas.auth import AddReceiptRequest, AddReceiptResponse
+from app.schemas.auth import AddSaidaRequest, AddSaidaResponse
+
 
 
 router = APIRouter()
@@ -67,7 +67,7 @@ async def register_user(data: RegisterRequest, db: AsyncSession = Depends(get_db
         email=new_user.email
     )
 
-@router.get("/recebimento", response_model=ReceiptResponse)
+@router.get("/recebimento", response_model=DataResponse)
 async def recebimento(db: AsyncSession = Depends(get_db), codigo: Optional[int] = None):
     try:
         if codigo:
@@ -106,12 +106,12 @@ async def recebimento(db: AsyncSession = Depends(get_db), codigo: Optional[int] 
             "FRAGILIDADE": rec.produto.fragilidade
         })
 
-    return ReceiptResponse(
+    return DataResponse(
         dados=dados
     )
 
 # apenas com get e path parameter
-@router.get("/recebimento/{codigo}", response_model=ReceiptResponse)
+@router.get("/recebimento/{codigo}", response_model=DataResponse)
 async def recebimento(codigo: int, db: AsyncSession = Depends(get_db)):
     try:
         query = (
@@ -144,7 +144,7 @@ async def recebimento(codigo: int, db: AsyncSession = Depends(get_db)):
             "FRAGILIDADE": rec.produto.fragilidade
         })
 
-    return ReceiptResponse(
+    return DataResponse(
         dados=dados
     )
 
@@ -181,65 +181,24 @@ async def recebimento(codigo: int, db: AsyncSession = Depends(get_db)):
 #             "FRAGILIDADE": rec.produto.fragilidade
 #         })
 
-#     return ReceiveResponse(
+#     return DataResponse(
 #         dados=dados
 #     )
 
-@router.post("/adicionar-produto", response_model=AddProductResponse)
-async def add_product(data: AddProductRequest, db: AsyncSession = Depends(get_db)):
-    # checa se o código já existe
-    query = select(DimProduto).where(DimProduto.codigo == data.codigo)
-    result = await db.execute(query)
-    product = result.scalar_one_or_none()
-    
-    if product:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Produto com código: {data.codigo}, já existe")
-
-    new_product = DimProduto(
-        codigo=data.codigo,
-        nome_basico=data.nome_basico,
-        nome_modificador=(data.nome_modificador or None),
-        descricao_tecnica=(data.descricao_tecnica or None),
-        fabricante=(data.fabricante or None),
-        observacoes_adicional=(data.observacoes_adicional or None),
-        imagem=data.imagem,  # precisa garantir que é bytes se for bytea
-        unidade=(data.unidade or None),
-        preco_de_venda=(data.preco_de_venda or None),
-        fragilidade=(data.fragilidade or None),
-        inserido_por=data.inserido_por,
-        rua=(data.rua or None),
-        coluna=(data.coluna or None),
-        andar=(data.andar or None),
-        largura=(data.largura or None),
-        profundidade=(data.profundidade or None),
-        peso=(data.peso or None)
-    )
-
-    try:
-        db.add(new_product)
-        await db.commit()
-        await db.refresh(new_product)
-    except Exception as e:
-        await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Erro ao adicionar produto: {str(e)}"
-        )
-
-    return AddProductResponse(
-        message="Produto adicionado com sucesso",
-    )
-
 @router.post("/adicionar-recebimento", response_model=AddReceiptResponse)
 async def add_receipt(data: AddReceiptRequest, db: AsyncSession = Depends(get_db)):
-    # checa se existe um produto com o codigo da request
+    #checa se o código existe
     query = select(DimProduto).where(DimProduto.codigo == data.codigo)
-    result = await db.execute(query)
-    product = result.scalar_one_or_none()
 
-    if not product:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Não existe um produto com o código {data.codigo}")
+    try:
+        result = await db.execute(query)
+        result_data = result.scalar_one_or_none()
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Erro no banco de dados. Erro: {e}")
     
+    if not result_data:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Produto com código: {data.codigo} não encontrado.")
+
     new_receipt = FactRecebimento(
         data_receb=data.data_receb,
         quant=data.quant,
@@ -262,7 +221,7 @@ async def add_receipt(data: AddReceiptRequest, db: AsyncSession = Depends(get_db
         message="Recebimento adicionado com sucesso!"
     )
 
-@router.get("/saidas", response_model=SaidaResponse)
+@router.get("/saidas", response_model=DataResponse)
 async def issue(db: AsyncSession = Depends(get_db)):
     # Query com ORM
     query = (
@@ -274,8 +233,9 @@ async def issue(db: AsyncSession = Depends(get_db)):
             FactRecebimento.preco_de_aquisicao,
             DimProduto.imagem,
             FactSaida.quant,
+            func.to_char(FactSaida.data_saida, 'DD/MM/YYYY').label('data_saida'),
             FactRecebimento.lote,
-            func.to_char(FactRecebimento.validade, 'DD/MM/YYYY').label('VALIDADE'),
+            func.to_char(FactRecebimento.validade, 'DD/MM/YYYY').label('validade'),
             DimProduto.preco_de_venda,
             DimProduto.fragilidade
         )
@@ -285,16 +245,34 @@ async def issue(db: AsyncSession = Depends(get_db)):
 
     try:
         result = await db.execute(query)
-        saidas = result.all()
+        saidas = result.mappings().all()
     except Exception as e:
         print('erro:', e)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Falha em buscar saídas no banco de dados")
     
-    return SaidaResponse(
-        dados=saidas
+    # transforma em uma lista para evitar erro do pydantic
+    dados = []
+    for row in saidas:
+        dados.append({
+            "codigo": row.codigo,
+            "nome_basico": row.nome_basico,
+            "fabricante": row.fabricante,
+            "fornecedor": row.fornecedor,
+            "preco_de_aquisicao": float(row.preco_de_aquisicao),
+            "imagem": row.imagem,
+            "quant": row.quant,
+            "data_saida": row.data_saida,
+            "lote": row.lote,
+            "validade": row.validade    ,
+            "preco_de_venda": float(row.preco_de_venda),
+            "fragilidade": row.fragilidade
+        })
+
+    return DataResponse(
+        dados=dados
     )
 
-@router.get("/saidas/{codigo}", response_model=SaidaResponse)
+@router.get("/saidas/{codigo}", response_model=DataResponse)
 async def issue(codigo: int, db: AsyncSession = Depends(get_db)):
     # Query com ORM
     query = (
@@ -306,8 +284,9 @@ async def issue(codigo: int, db: AsyncSession = Depends(get_db)):
             FactRecebimento.preco_de_aquisicao,
             DimProduto.imagem,
             FactSaida.quant,
+            func.to_char(FactSaida.data_saida, 'DD/MM/YYYY').label('data_saida'),
             FactRecebimento.lote,
-            func.to_char(FactRecebimento.validade, 'DD/MM/YYYY').label('VALIDADE'),
+            func.to_char(FactRecebimento.validade, 'DD/MM/YYYY').label('validade'),
             DimProduto.preco_de_venda,
             DimProduto.fragilidade
         )
@@ -318,62 +297,90 @@ async def issue(codigo: int, db: AsyncSession = Depends(get_db)):
 
     try:
         result = await db.execute(query)
-        saidas = result.scalars().all()
+        saidas = result.mappings().all()
     except Exception as e:
         print('erro:', e)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Falha em buscar saídas no banco de dados")
-    
-    return SaidaResponse(
-        dados=saidas
+
+    # para Evitar erro do pydantic e transformar decimal em float
+    dados = []
+    for row in saidas:
+        dados.append({
+            "codigo": row["codigo"],
+            "nome_basico": row["nome_basico"],
+            "fabricante": row["fabricante"],
+            "fornecedor": row["fornecedor"],
+            "preco_de_aquisicao": float(row["preco_de_aquisicao"]),
+            "imagem": row["imagem"],
+            "quant": row["quant"],
+            "data_saida": row["data_saida"],
+            "lote": row["lote"],
+            "validade": row["validade"],
+            "preco_de_venda": float(row["preco_de_venda"]),
+            "fragilidade": row["fragilidade"]
+        })
+
+    return DataResponse(
+        dados=dados
     )
 
 @router.post("/adicionar-saida", response_model=AddSaidaResponse)
-async def add_issue(data: AddSaidaRequest, db: AsyncSession = Depends(get_db)):
-    # checar se há quantidade disponível para sair
-    
-    join_stmt = outerjoin(
-        FactRecebimento,
-        FactSaida,
-        and_(
-            FactRecebimento.lote == FactSaida.lote,
-            FactRecebimento.codigo == FactSaida.codigo,
-            FactRecebimento.fornecedor == FactSaida.fornecedor
-        )
-    )
-
-    query = (
-        select(
-            (
-                func.coalesce(func.sum(FactRecebimento.quant), 0)
-                - func.coalesce(func.sum(FactSaida.quant), 0)
-            ).label("estoque_disponivel")
-        )
-        .select_from(join_stmt)
+async def add_issue(data: AddSaidaRequest, db: AsyncSession = Depends(get_db)):   
+    # utilização de subqueries para evitar duplicação de colunas
+    # subquery de recebimentos
+    recebimentos_subq = (
+        select(func.coalesce(func.sum(FactRecebimento.quant), 0))
         .where(
-            and_(
-                FactRecebimento.lote == data.numbLote,
-                FactRecebimento.codigo == data.codigo,
-                FactRecebimento.fornecedor == data.fornecedor
-            )
+            FactRecebimento.codigo == data.codigo,
+            FactRecebimento.lote == data.numbLote,
+            FactRecebimento.fornecedor == data.fornecedor
         )
-    )
+    ).scalar_subquery()
 
+    # subquery de saídas
+    saidas_subq = (
+        select(func.coalesce(func.sum(FactSaida.quant), 0))
+        .where(
+            FactSaida.codigo == data.codigo,
+            FactSaida.lote == data.numbLote,
+            FactSaida.fornecedor == data.fornecedor
+        )
+    ).scalar_subquery()
+
+    # query final
+    query = select((recebimentos_subq - saidas_subq).label("EstoqueDisponivel"))
 
     try: 
         result = await db.execute(query)
-        quantidade_disponivel = result.scalars().all()
+        quantidade_disponivel = result.scalar() or 0
+        quantidade_disponivel = int(quantidade_disponivel) # transforma para fazer comparação
 
-        # print(quantidade_disponivel)
+        if quantidade_disponivel < data.quantidade:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Quantidade no estoque insuficiente")
 
+        # Adicionando saída no banco de dados
+        new_issue = FactSaida(
+            data_saida=data.data_saida,
+            quant=data.quantidade,
+            codigo=data.codigo,
+            lote=data.numbLote,
+            fornecedor=data.fornecedor
+        )
+
+        db.add(new_issue)
+        await db.commit()
+        await db.refresh(new_issue)
+    except HTTPException as e:
+        raise e
     except Exception as e:
-        print('erro:', e)
+        await db.rollback()
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Falha ao adicionar saída")
 
     return AddSaidaResponse(
-        message="Saída adicionada com sucesso"
+        message="Saída adicionada com sucesso!"
     )
 
-@router.get("/saldos", response_model=SaldoResponse)
+@router.get("/saldos", response_model=DataResponse)
 async def balance(db: AsyncSession = Depends(get_db)):
     # CTE para o saldo acumulado
     saldo_cte = (
@@ -421,11 +428,11 @@ async def balance(db: AsyncSession = Depends(get_db)):
 
     dados = [dict(row) for row in saldos]
 
-    return SaldoResponse(
+    return DataResponse(
         dados=dados
     )    
 
-@router.get("/saldos/{codigo}", response_model=SaldoResponse)
+@router.get("/saldos/{codigo}", response_model=DataResponse)
 async def balance(codigo: int, db: AsyncSession = Depends(get_db)):
     # CTE para o saldo acumulado
     saldo_cte = (
@@ -467,13 +474,101 @@ async def balance(codigo: int, db: AsyncSession = Depends(get_db)):
 
     try:
         result = await db.execute(query)
-        saldos = result.mappings().one_or_none()
+        saldos = result.mappings().all()
     except Exception as e:
         print('erro:', e)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Falha interna do servidor")
 
-    dados = [saldos]
+    # Para evitar erros do pydantic
+    dados = [dict(row) for row in saldos]
 
-    return SaldoResponse(
+    return DataResponse(
         dados=dados
     )    
+
+@router.get("/fornecedores/{codigo}", response_model=DataResponse)
+async def fornecedores(codigo: int, db: AsyncSession = Depends(get_db)):
+    query = (
+        select(FactRecebimento.fornecedor)
+        .distinct()
+        .where(FactRecebimento.codigo == codigo)
+    )
+
+    try:
+        result = await db.execute(query)
+        fornecedores = result.scalars().all()
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Erro ao buscar fornecedores: " + str(e))
+
+    if len(fornecedores) == 0:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f'Fornecedor não encontrado para o codigo {codigo}')
+
+    dados = [{
+        "id": row,
+        "nome": row
+    } for row in fornecedores]
+
+    return DataResponse(
+        dados=dados
+    )
+
+@router.get("/lotes/", response_model=DataResponse)
+async def lotes(fornecedor: str | None = None, codigo: int | None = None, db: AsyncSession = Depends(get_db)):
+    # utilização de subqueries para evitar duplicação de colunas
+    # subquery de recebimentos
+    recebimentos_subq = (
+        select(func.coalesce(func.sum(FactRecebimento.quant), 0))
+        .where(
+            FactRecebimento.codigo == codigo,
+            FactRecebimento.fornecedor == fornecedor
+        )
+    ).scalar_subquery()
+
+    # subquery de saídas
+    saidas_subq = (
+        select(func.coalesce(func.sum(FactSaida.quant), 0))
+        .where(
+            FactSaida.codigo == codigo,
+            FactSaida.fornecedor == fornecedor
+        )
+    ).scalar_subquery()
+
+    # query final
+    query = (
+        select(
+            (recebimentos_subq - saidas_subq).label("EstoqueDisponivel"),
+            FactRecebimento.lote
+        )
+        .group_by(
+            FactRecebimento.lote
+        )
+        .where(
+            FactRecebimento.codigo == codigo,
+            FactRecebimento.fornecedor == fornecedor
+        )
+    )
+    
+    try:
+        result = await db.execute(query)
+        query_result = result.mappings().all()
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Erro ao buscar lotes: {str(e)}")
+    
+    dados = [{
+        "id": row.lote,
+        "codigo": codigo,
+        "lote": row.lote,
+        "fornecedor": fornecedor,
+        "estoqueDisponivel": row.EstoqueDisponivel
+    } for row in query_result]
+
+    return DataResponse(
+        dados=dados
+    )
+
+
+
+
+
+
+
