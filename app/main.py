@@ -2,6 +2,8 @@ from fastapi import FastAPI
 from app.core.database import engine, Base
 from app.routers import auth
 from fastapi.middleware.cors import CORSMiddleware
+from app.routers import produtos
+
 
 
 app = FastAPI()
@@ -19,3 +21,4 @@ async def startup():
         await conn.run_sync(Base.metadata.create_all)
 
 app.include_router(auth.router)
+app.include_router(produtos.router, prefix="/api")
