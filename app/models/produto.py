@@ -27,3 +27,4 @@ class DimProduto(Base):
     # Relacionamento
     recebimentos: Mapped[list["FactRecebimento"]] = relationship(back_populates="produto")
     saidas: Mapped[list["FactSaida"]] = relationship(back_populates="produto")
+    prodcategorias: Mapped[list["FactCategoria"]] = relationship(back_populates="produto")

@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
-from sqlalchemy import select
+from sqlalchemy import select, func
 from app.core.database import SessionLocal
-from app.models import DimProduto, FactRecebimento
+from app.models import DimProduto, FactRecebimento, FactCategoria, DimCategoria
 from typing import Optional
 from app.schemas.recebimentos import AddReceiptRequest, AddReceiptResponse, ReceiptResponse
 
@@ -19,37 +19,54 @@ async def recebimento(db: AsyncSession = Depends(get_db), codigo: Optional[int] 
         if codigo:
             query = (
             select(FactRecebimento)
-            .options(joinedload(FactRecebimento.produto))  # Faz o JOIN
+            .options(joinedload(FactRecebimento.produto, FactCategoria.categoria))  # Faz o JOIN
             .where(FactRecebimento.codigo == codigo)
             )
         else:
             query = (
-                select(FactRecebimento)
-                .options(joinedload(FactRecebimento.produto))  # Faz o JOIN
+                select(
+                    func.to_char(FactRecebimento.data_receb, 'DD/MM/YYYY').label('data_receb'),
+                    DimProduto.codigo,
+                    DimProduto.nome_basico,
+                    DimProduto.fabricante,
+                    FactRecebimento.fornecedor,
+                    FactRecebimento.preco_de_aquisicao,
+                    DimProduto.imagem,
+                    FactRecebimento.quant,
+                    FactRecebimento.lote,
+                    func.to_char(FactRecebimento.validade, 'DD/MM/YYYY').label('validade'),
+                    DimProduto.preco_de_venda,
+                    DimProduto.fragilidade,
+                    DimCategoria.categoria.label("categoria")
+                )
+                .select_from(FactRecebimento)
+                .join(DimProduto, FactRecebimento.codigo == DimProduto.codigo)
+                .outerjoin(FactCategoria, DimProduto.codigo == FactCategoria.codigo)
+                .outerjoin(DimCategoria, FactCategoria.idcategoria == DimCategoria.idcategoria)
             )
-
+        
         result = await db.execute(query)
-        recebimentos = result.scalars().all()
+        recebimentos = result.mappings().all()
     except Exception as e:
-        print("erro:", e)
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, DETAIL="Erro interno, por favor tente novamente mais tarde")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Erro interno, por favor tente novamente mais tarde")
 
     # Converter para JSON
     dados = []
     for rec in recebimentos:
         dados.append({
-            "DATA_RECEB": rec.data_receb.strftime("%d/%m/%Y") if rec.data_receb else None,
-            "CODIGO": rec.produto.codigo,
-            "NOME_BASICO": rec.produto.nome_basico,
-            "FABRICANTE": rec.produto.fabricante,
-            "FORNECEDOR": rec.fornecedor,
-            "PRECO_DE_AQUISICAO": rec.preco_de_aquisicao,
-            "IMAGEM": rec.produto.imagem,
-            "QUANT": rec.quant,
-            "LOTE": rec.lote,
-            "VALIDADE": rec.validade.strftime("%d/%m/%Y") if rec.validade else None,
-            "PRECO_DE_VENDA": rec.produto.preco_de_venda,
-            "FRAGILIDADE": rec.produto.fragilidade
+            "DATA_RECEB": rec["data_receb"],
+            "CODIGO": rec["codigo"],
+            "NOME_BASICO": rec["nome_basico"],
+            "FABRICANTE": rec["fabricante"],
+            "FORNECEDOR": rec["fornecedor"],
+            "PRECO_DE_AQUISICAO": float(rec["preco_de_aquisicao"]),
+            "IMAGEM": rec["imagem"],
+            "QUANT": rec["quant"],
+            "LOTE": rec["lote"],
+            "VALIDADE": rec["validade"],
+            "PRECO_DE_VENDA": float(rec["preco_de_venda"]),
+            "FRAGILIDADE": rec["fragilidade"],
+            "CATEGORIA": rec["categoria"]
         })
 
     return ReceiptResponse(
