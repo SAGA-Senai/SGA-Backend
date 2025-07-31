@@ -17,10 +17,14 @@ async def balance(db: AsyncSession = Depends(get_db)):
     # CTE para o saldo acumulado
     saldo_cte = (
         select(
-            DimProduto.codigo.label("codigo"),
-            DimProduto.nome_basico.label("nome_basico"),
-            FactRecebimento.lote.label("lote"),
-            DimProduto.imagem.label("imagem"),
+            DimProduto.codigo,
+            DimProduto.nome_basico,
+            FactRecebimento.lote,
+            DimProduto.imagem,
+            DimProduto.fragilidade,
+            DimProduto.fabricante,
+            FactRecebimento.fornecedor,
+            DimProduto.preco_de_venda,
             func.to_char(FactRecebimento.validade, "DD/MM/YYYY").label("validade"),
             func.coalesce(func.sum(FactRecebimento.quant), 0).label("quant_recebimento"),
             func.coalesce(func.sum(FactSaida.quant), 0).label("quant_saida"),
@@ -33,6 +37,7 @@ async def balance(db: AsyncSession = Depends(get_db)):
             FactRecebimento.lote,
             DimProduto.imagem,
             FactRecebimento.validade,
+            FactRecebimento.fornecedor
         )
         .cte("SaldoAcumulado")
     )
@@ -44,7 +49,11 @@ async def balance(db: AsyncSession = Depends(get_db)):
             saldo_cte.c.nome_basico,
             saldo_cte.c.lote,
             saldo_cte.c.imagem,
+            saldo_cte.c.fragilidade,
+            saldo_cte.c.fornecedor,
+            saldo_cte.c.fabricante,
             saldo_cte.c.validade,
+            saldo_cte.c.preco_de_venda,
             saldo_cte.c.quant_recebimento,
             saldo_cte.c.quant_saida,
             (saldo_cte.c.quant_recebimento - saldo_cte.c.quant_saida).label("saldo"),
