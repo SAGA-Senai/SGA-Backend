@@ -3,6 +3,7 @@ from app.core.database import engine, Base
 from app.routers import auth
 from fastapi.middleware.cors import CORSMiddleware
 from app.routers import produtos
+from app.routers import estoque
 
 
 
@@ -22,3 +23,4 @@ async def startup():
 
 app.include_router(auth.router)
 app.include_router(produtos.router, prefix="/api")
+app.include_router(estoque.router)
