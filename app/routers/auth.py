@@ -27,31 +27,14 @@ async def login(request: LoginRequest, db: AsyncSession = Depends(get_db)):
     result_user = await db.execute(select(DimUsuario).where(DimUsuario.email == email))
     usuario = result_user.scalars().first()
 
-    if usuario and pwd_context.verify(senha, usuario.senha):
-        return {
-            "success": True,
-            "usuario": {
-                "email": usuario.email,
-                "nome": usuario.nome,
-                "tipo": "usuario"
-            }
-        }
+    if not user or not bcrypt.verify(data.senha, user.senha):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Credenciais inválidas")
 
-    # Senão, tenta encontrar na DimProfessor
-    result_prof = await db.execute(select(DimProfessor).where(DimProfessor.email == email))
-    professor = result_prof.scalars().first()
-
-    if professor and pwd_context.verify(senha, professor.senha):
-        return {
-            "success": True,
-            "usuario": {
-                "email": professor.email,
-                "nome": professor.nome,
-                "tipo": "professor"
-            }
-        }
-
-    raise HTTPException(status_code=401, detail="Credenciais inválidas")
+    return LoginResponse(
+        idusuario=user.idusuario,
+        nome=user.nome,
+        email=user.email
+    )
 
 
 @router.post("/register", response_model=LoginResponse)
