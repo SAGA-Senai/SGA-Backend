@@ -18,4 +18,3 @@ class FactCategoria(Base):
     idcategoria: Mapped[int] = mapped_column(Integer, ForeignKey("dimcategoria.idcategoria"), nullable=False)
 
     categoria: Mapped["DimCategoria"] = relationship(back_populates="prodcategorias")
-    produto: Mapped["DimProduto"] = relationship(back_populates="prodcategorias")

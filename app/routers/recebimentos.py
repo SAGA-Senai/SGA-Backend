@@ -18,8 +18,25 @@ async def recebimento(db: AsyncSession = Depends(get_db), codigo: Optional[int] 
     try:
         if codigo:
             query = (
-            select(FactRecebimento)
-            .options(joinedload(FactRecebimento.produto, FactCategoria.categoria))  # Faz o JOIN
+            select(
+                func.to_char(FactRecebimento.data_receb, 'DD/MM/YYYY').label('data_receb'),
+                DimProduto.codigo,
+                DimProduto.nome_basico,
+                DimProduto.fabricante,
+                FactRecebimento.fornecedor,
+                FactRecebimento.preco_de_aquisicao,
+                DimProduto.imagem,
+                FactRecebimento.quant,
+                FactRecebimento.lote,
+                func.to_char(FactRecebimento.validade, 'DD/MM/YYYY').label('validade'),
+                DimProduto.preco_de_venda,
+                DimProduto.fragilidade,
+                DimCategoria.categoria.label("categoria")
+            )
+            .select_from(FactRecebimento)
+            .join(DimProduto, FactRecebimento.codigo == DimProduto.codigo)
+            .outerjoin(FactCategoria, DimProduto.codigo == FactCategoria.codigo)
+            .outerjoin(DimCategoria, FactCategoria.idcategoria == DimCategoria.idcategoria)
             .where(FactRecebimento.codigo == codigo)
             )
         else:
@@ -48,6 +65,7 @@ async def recebimento(db: AsyncSession = Depends(get_db), codigo: Optional[int] 
         result = await db.execute(query)
         recebimentos = result.mappings().all()
     except Exception as e:
+        print("Erro ao buscar recebimentos:", e)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Erro interno, por favor tente novamente mais tarde")
 
     # Converter para JSON
@@ -78,13 +96,31 @@ async def recebimento(db: AsyncSession = Depends(get_db), codigo: Optional[int] 
 async def recebimento(codigo: int, db: AsyncSession = Depends(get_db)):
     try:
         query = (
-        select(FactRecebimento)
-        .options(joinedload(FactRecebimento.produto))  # Faz o JOIN
-        .where(FactRecebimento.codigo == codigo) # filtra pelo código
+            select(
+                func.to_char(FactRecebimento.data_receb, 'DD/MM/YYYY').label('data_receb'),
+                DimProduto.codigo,
+                DimProduto.nome_basico,
+                DimProduto.fabricante,
+                FactRecebimento.fornecedor,
+                FactRecebimento.preco_de_aquisicao,
+                DimProduto.imagem,
+                FactRecebimento.quant,
+                FactRecebimento.lote,
+                func.to_char(FactRecebimento.validade, 'DD/MM/YYYY').label('validade'),
+                DimProduto.preco_de_venda,
+                DimProduto.fragilidade,
+                DimCategoria.categoria.label("categoria")
+            )
+            .select_from(FactRecebimento)
+            .join(DimProduto, FactRecebimento.codigo == DimProduto.codigo)
+            .outerjoin(FactCategoria, DimProduto.codigo == FactCategoria.codigo)
+            .outerjoin(DimCategoria, FactCategoria.idcategoria == DimCategoria.idcategoria)
+            .where(FactRecebimento.codigo == codigo)
         )
 
         result = await db.execute(query)
-        recebimentos = result.scalars().all()
+        recebimentos = result.mappings().all()
+        print("Recebimentos encontrados:", recebimentos)
     except Exception as e:
         print("erro:", e)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Erro interno, por favor tente novamente mais tarde")
@@ -93,18 +129,18 @@ async def recebimento(codigo: int, db: AsyncSession = Depends(get_db)):
     dados = []
     for rec in recebimentos:
         dados.append({
-            "DATA_RECEB": rec.data_receb.strftime("%d/%m/%Y") if rec.data_receb else None,
-            "CODIGO": rec.produto.codigo,
-            "NOME_BASICO": rec.produto.nome_basico,
-            "FABRICANTE": rec.produto.fabricante,
+            "DATA_RECEB": rec.data_receb,
+            "CODIGO": rec.codigo,
+            "NOME_BASICO": rec.nome_basico,
+            "FABRICANTE": rec.fabricante,
             "FORNECEDOR": rec.fornecedor,
             "PRECO_DE_AQUISICAO": rec.preco_de_aquisicao,
-            "IMAGEM": rec.produto.imagem,
+            "IMAGEM": rec.imagem,
             "QUANT": rec.quant,
             "LOTE": rec.lote,
-            "VALIDADE": rec.validade.strftime("%d/%m/%Y") if rec.validade else None,
-            "PRECO_DE_VENDA": rec.produto.preco_de_venda,
-            "FRAGILIDADE": rec.produto.fragilidade
+            "VALIDADE": rec.validade,
+            "PRECO_DE_VENDA": rec.preco_de_venda,
+            "FRAGILIDADE": rec.fragilidade
         })
 
     return ReceiptResponse(
