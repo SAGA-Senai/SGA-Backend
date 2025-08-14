@@ -30,7 +30,9 @@ async def issue(db: AsyncSession = Depends(get_db)):
             DimProduto.fragilidade
         )
         .join(DimProduto, FactSaida.codigo == DimProduto.codigo)
-        .join(FactRecebimento, FactSaida.codigo == FactRecebimento.codigo)
+        .join(FactRecebimento, 
+            (FactSaida.codigo == FactRecebimento.codigo) &
+            (FactSaida.lote == FactRecebimento.lote))
     )
 
     try:
@@ -81,7 +83,9 @@ async def issue(codigo: int, db: AsyncSession = Depends(get_db)):
             DimProduto.fragilidade
         )
         .join(DimProduto, FactSaida.codigo == DimProduto.codigo)
-        .join(FactRecebimento, FactSaida.codigo == FactRecebimento.codigo)
+        .join(FactRecebimento, 
+            (FactSaida.codigo == FactRecebimento.codigo) &
+            (FactSaida.lote == FactRecebimento.lote))
         .where(FactSaida.codigo == codigo)
     )
 

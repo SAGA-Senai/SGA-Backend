@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, and_
+from sqlalchemy.orm import sessionmaker, aliased
 from app.core.database import SessionLocal
 from app.models.produto import DimProduto
 from app.models import FactSaida, FactRecebimento
@@ -12,53 +13,66 @@ async def get_db():
     async with SessionLocal() as session:
         yield session
 
-@router.get("/saldos", response_model=SaldosResponse)
-async def balance(db: AsyncSession = Depends(get_db)):
-    # CTE para o saldo acumulado
-    saldo_cte = (
-        select(
-            DimProduto.codigo,
-            DimProduto.nome_basico,
-            FactRecebimento.lote,
-            DimProduto.imagem,
-            DimProduto.fragilidade,
-            DimProduto.fabricante,
-            FactRecebimento.fornecedor,
-            DimProduto.preco_de_venda,
-            func.to_char(FactRecebimento.validade, "DD/MM/YYYY").label("validade"),
-            func.coalesce(func.sum(FactRecebimento.quant), 0).label("quant_recebimento"),
-            func.coalesce(func.sum(FactSaida.quant), 0).label("quant_saida"),
-        )
-        .join(DimProduto, FactRecebimento.codigo == DimProduto.codigo)
-        .outerjoin(FactSaida, FactRecebimento.codigo == FactSaida.codigo)
-        .group_by(
-            DimProduto.codigo,
-            DimProduto.nome_basico,
-            FactRecebimento.lote,
-            DimProduto.imagem,
-            FactRecebimento.validade,
-            FactRecebimento.fornecedor
-        )
-        .cte("SaldoAcumulado")
+def get_saldos_query():
+    """
+    Função auxiliar para construir a query base de saldos.
+    Isso evita duplicação de código entre as endpoints.
+    """
+    # subquery para agregar os dados de recebimento
+    recebimento_sub = select(
+        FactRecebimento.lote,
+        FactRecebimento.fornecedor,
+        FactRecebimento.validade,
+        FactRecebimento.codigo,
+        func.sum(FactRecebimento.quant).label('quant_recebimento')
+    ).group_by(
+        FactRecebimento.lote,
+        FactRecebimento.fornecedor,
+        FactRecebimento.validade,
+        FactRecebimento.codigo
+    ).subquery()
+
+    # subquery para agregar os dados de saida
+    saida_sub = select(
+        FactSaida.lote,
+        FactSaida.fornecedor,
+        func.sum(FactSaida.quant).label('quant_saida')
+    ).group_by(
+        FactSaida.lote,
+        FactSaida.fornecedor
+    ).subquery()
+
+    # aliased para referenciar as subqueries de forma clara
+    r = aliased(recebimento_sub)
+    s = aliased(saida_sub)
+
+    # query principal com os JOINs
+    query = select(
+        DimProduto.codigo,
+        DimProduto.nome_basico,
+        r.c.lote,
+        DimProduto.imagem,
+        DimProduto.fragilidade,
+        DimProduto.fabricante,
+        r.c.fornecedor,
+        DimProduto.preco_de_venda,
+        # Note: func.to_char é uma função específica do PostgreSQL.
+        func.to_char(r.c.validade, 'DD/MM/YYYY').label('validade'),
+        func.coalesce(r.c.quant_recebimento, 0).label('quant_recebimento'),
+        func.coalesce(s.c.quant_saida, 0).label('quant_saida'),
+        (func.coalesce(r.c.quant_recebimento, 0) - func.coalesce(s.c.quant_saida, 0)).label('saldo')
+    ).join(
+        r, DimProduto.codigo == r.c.codigo
+    ).outerjoin(
+        s, and_(r.c.lote == s.c.lote, r.c.fornecedor == s.c.fornecedor)
     )
 
-    # SELECT final usando a CTE
-    query = (
-        select(
-            saldo_cte.c.codigo,
-            saldo_cte.c.nome_basico,
-            saldo_cte.c.lote,
-            saldo_cte.c.imagem,
-            saldo_cte.c.fragilidade,
-            saldo_cte.c.fornecedor,
-            saldo_cte.c.fabricante,
-            saldo_cte.c.validade,
-            saldo_cte.c.preco_de_venda,
-            saldo_cte.c.quant_recebimento,
-            saldo_cte.c.quant_saida,
-            (saldo_cte.c.quant_recebimento - saldo_cte.c.quant_saida).label("saldo"),
-        )
-    )
+    return query
+
+
+@router.get("/saldos", response_model=SaldosResponse)
+async def balance(db: AsyncSession = Depends(get_db)):
+    query = get_saldos_query()
 
     try:
         result = await db.execute(query)
@@ -75,52 +89,7 @@ async def balance(db: AsyncSession = Depends(get_db)):
 
 @router.get("/saldos/{codigo}", response_model=SaldosResponse)
 async def balance(codigo: int, db: AsyncSession = Depends(get_db)):
-    # CTE para o saldo acumulado
-    saldo_cte = (
-        select(
-            DimProduto.codigo,
-            DimProduto.nome_basico,
-            FactRecebimento.lote,
-            DimProduto.imagem,
-            DimProduto.fragilidade,
-            DimProduto.fabricante,
-            FactRecebimento.fornecedor,
-            DimProduto.preco_de_venda,
-            func.to_char(FactRecebimento.validade, "DD/MM/YYYY").label("validade"),
-            func.coalesce(func.sum(FactRecebimento.quant), 0).label("quant_recebimento"),
-            func.coalesce(func.sum(FactSaida.quant), 0).label("quant_saida"),
-        )
-        .join(DimProduto, FactRecebimento.codigo == DimProduto.codigo)
-        .outerjoin(FactSaida, FactRecebimento.codigo == FactSaida.codigo)
-        .group_by(
-            DimProduto.codigo,
-            DimProduto.nome_basico,
-            FactRecebimento.lote,
-            DimProduto.imagem,
-            FactRecebimento.validade,
-            FactRecebimento.fornecedor,
-        )
-        .cte("SaldoAcumulado")
-    )
-
-    # SELECT final usando a CTE
-    query = (
-        select(
-            saldo_cte.c.codigo,
-            saldo_cte.c.nome_basico,
-            saldo_cte.c.lote,
-            saldo_cte.c.imagem,
-            saldo_cte.c.fragilidade,
-            saldo_cte.c.fornecedor,
-            saldo_cte.c.fabricante,
-            saldo_cte.c.preco_de_venda,
-            saldo_cte.c.validade,
-            saldo_cte.c.quant_recebimento,
-            saldo_cte.c.quant_saida,
-            (saldo_cte.c.quant_recebimento - saldo_cte.c.quant_saida).label("saldo"),
-        )
-        .where(saldo_cte.c.codigo == codigo)
-    )
+    query = get_saldos_query().where(DimProduto.codigo == codigo)
 
     try:
         result = await db.execute(query)
