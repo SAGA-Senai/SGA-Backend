@@ -1,11 +1,12 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func, case, literal
 from app.core.database import get_db
 from app.models.estoque import EstoqueReal
-from app.schemas.estoque import EstoqueResponse
+from app.schemas.estoque import EstoqueResponse, CatalogoResponse
 from app.models.saida import FactSaida
 from app.schemas.saidas import EstoqueSeguranca
+from app.models.produto import DimProduto
 from typing import List
 from sqlalchemy import func
 
@@ -32,3 +33,38 @@ async def calcularestoque(db: AsyncSession = Depends(get_db)):
 
     # transformar em lista de dicts
     return [{"codigo": r[0], "estoque_seguranca": r[1]} for r in rows]
+
+@router.get("/ver-catalogo", response_model=List[CatalogoResponse])
+async def ver_catalogo(db: AsyncSession = Depends(get_db)):
+
+    query = (
+        select(
+            DimProduto.codigo,
+            DimProduto.nome_basico,
+            DimProduto.nome_modificador,
+            DimProduto.descricao_tecnica,
+            DimProduto.fabricante,
+            DimProduto.observacoes_adicional,
+            DimProduto.imagem,
+            DimProduto.unidade,
+            DimProduto.preco_de_venda,
+            case(
+                (DimProduto.fragilidade == True, literal("SIM")),
+                else_=literal("NÃO")
+            ).label('fragilidade'),
+            DimProduto.inserido_por,
+            DimProduto.rua,
+            DimProduto.coluna,
+            DimProduto.andar,
+            DimProduto.altura,
+            DimProduto.largura,
+            DimProduto.profundidade,
+            DimProduto.peso,
+            EstoqueReal.quantidade
+        )
+        .outerjoin(EstoqueReal, EstoqueReal.codigo == DimProduto.codigo)
+    )
+
+    result = await db.execute(query)
+    rows = result.all()
+    return rows
