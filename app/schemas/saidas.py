@@ -20,3 +20,7 @@ class FornecedoresResponse(BaseModel):
 
 class LotesResponse(BaseModel):
     dados: list
+
+class EstoqueSeguranca(BaseModel):
+    codigo: int
+    estoque_seguranca: float

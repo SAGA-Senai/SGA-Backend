@@ -4,8 +4,8 @@ from sqlalchemy import select
 from app.core.database import get_db
 from app.models.estoque import EstoqueReal
 from app.schemas.estoque import EstoqueResponse
-from app.models.recebimento import FactRecebimento
-from app.schemas.recebimentos import EstoqueSeguranca
+from app.models.saida import FactSaida
+from app.schemas.saidas import EstoqueSeguranca
 from typing import List
 from sqlalchemy import func
 
@@ -22,10 +22,10 @@ async def listar_estoque(db: AsyncSession = Depends(get_db)):
 async def calcularestoque(db: AsyncSession = Depends(get_db)):
     query = (
         select(
-            FactRecebimento.codigo,
-            ((func.max(FactRecebimento.quant) + func.min(FactRecebimento.quant)) / 2).label("estoque_seguranca")
+            FactSaida.codigo,
+            ((func.max(FactSaida.quant) + func.min(FactSaida.quant)) / 2).label("estoque_seguranca")
         )
-        .group_by(FactRecebimento.codigo)
+        .group_by(FactSaida.codigo)
     )
     result = await db.execute(query)
     rows = result.all()  # retorna lista de tuplas (codigo, estoque_seguranca)
