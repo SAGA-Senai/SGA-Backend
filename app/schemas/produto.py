@@ -27,9 +27,9 @@ class ProdutoResponse(BaseModel):
     codigo: int
     nome_basico: str
     nome_modificador: str
-    descricao_tecnica: Optional[str] = None
-    fabricante: Optional[str] = None
-    unidade: Optional[str] = None
+    descricao_tecnica: Optional[str]
+    fabricante: Optional[str]
+    unidade: Optional[str]
     preco_de_venda: float
     fragilidade: bool
     rua: int
@@ -39,9 +39,12 @@ class ProdutoResponse(BaseModel):
     largura: float
     profundidade: float
     peso: float
-    observacoes_adicional: Optional[str] = None
-    imagem: Optional[bytes] = None
+    observacoes_adicional: Optional[str]
     inserido_por: str
+    imagem: Optional[str]  # agora base64
+
+    class Config:
+        orm_mode = True
 
 # DELETAR
 class ProdutoDelete(BaseModel):

@@ -9,6 +9,7 @@ from app.schemas.saidas import EstoqueSeguranca
 from app.models.produto import DimProduto
 from typing import List
 from sqlalchemy import func
+import base64
 
 router = APIRouter()
 
@@ -66,5 +67,15 @@ async def ver_catalogo(db: AsyncSession = Depends(get_db)):
     )
 
     result = await db.execute(query)
-    rows = result.all()
-    return rows
+    rows = result.mappings().all()  # <-- retorna dict-like ao invés de tupla
+
+    response = []
+    for row in rows:
+        produto_dict = dict(row)  # converte para dict normal
+        if produto_dict.get("imagem"):
+            # Converte bytea em base64 (se for bytes)
+            if isinstance(produto_dict["imagem"], (bytes, bytearray)):
+                produto_dict["imagem"] = base64.b64encode(produto_dict["imagem"]).decode("utf-8")
+        response.append(produto_dict)
+
+    return response

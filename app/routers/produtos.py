@@ -4,6 +4,7 @@ from sqlalchemy import insert, select
 from app.models.produto import DimProduto
 from app.core.database import get_db
 from fastapi import Body
+import base64
 
 from app.schemas.produto import ProdutoResponse, ProdutoDelete, ProdutoPatch
 from typing import List # < --- MEU
@@ -64,14 +65,22 @@ async def cadastrar_produto(
 
 # EDIÇÃO - VER PRODUTOS PROVISORIO 
 
-@router.get("/ver_produtos", response_model=List[ProdutoResponse]) # < --- MEU
+@router.get("/ver_produtos", response_model=List[ProdutoResponse])
 async def ver_produtos(db: AsyncSession = Depends(get_db)):
-    
     query = select(DimProduto)
     result = await db.execute(query)
-    produtos = result.scalars().all()  
+    produtos = result.scalars().all()
+
+    response = []
+    for produto in produtos:
+        data = {c.name: getattr(produto, c.name) for c in produto.__table__.columns}
+        if data.get("imagem") and isinstance(data["imagem"], (bytes, bytearray)):
+            data["imagem"] = base64.b64encode(data["imagem"]).decode("utf-8")
+        response.append(ProdutoResponse(**data))  # valida com o schema
+
+    return response
     
-    return [ProdutoResponse(**produto.__dict__) for produto in produtos] # < --- MEU
+    # return [ProdutoResponse(**produto.__dict__) for produto in produtos] # < --- MEU
 
 # DELETE - PRODUTOS
 
