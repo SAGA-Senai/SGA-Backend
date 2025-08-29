@@ -70,17 +70,31 @@ async def ver_produtos(db: AsyncSession = Depends(get_db)):
     query = select(DimProduto)
     result = await db.execute(query)
     produtos = result.scalars().all()
-
+    
     response = []
     for produto in produtos:
-        data = {c.name: getattr(produto, c.name) for c in produto.__table__.columns}
-        if data.get("imagem") and isinstance(data["imagem"], (bytes, bytearray)):
-            data["imagem"] = base64.b64encode(data["imagem"]).decode("utf-8")
-        response.append(ProdutoResponse(**data))  # valida com o schema
-
-    return response
+        produto_dict = produto.__dict__.copy()
+        if produto_dict.get("imagem"):
+            produto_dict["imagem"] = base64.b64encode(produto_dict["imagem"]).decode("utf-8")
+        response.append(ProdutoResponse(**produto_dict))
     
-    # return [ProdutoResponse(**produto.__dict__) for produto in produtos] # < --- MEU
+    return response
+
+
+@router.get("/ver_produtos/{codigo}", response_model=ProdutoResponse)
+async def ver_produto(codigo: int, db: AsyncSession = Depends(get_db)):
+    query = select(DimProduto).where(DimProduto.codigo == codigo)
+    result = await db.execute(query)
+    produto = result.scalar_one_or_none() 
+
+    if not produto:
+        raise HTTPException(status_code=404, detail="Produto não encontrado")
+    
+    produto_dict = produto.__dict__.copy()
+    if produto_dict.get("imagem"):
+        produto_dict["imagem"] = base64.b64encode(produto_dict["imagem"]).decode("utf-8")
+    
+    return ProdutoResponse(**produto_dict)
 
 # DELETE - PRODUTOS
 
@@ -115,26 +129,58 @@ async def deletar_produto(codigo: int, db: AsyncSession = Depends(get_db)):
         profundidade=produto_deletado.profundidade,
         peso=produto_deletado.peso,
         observacoes_adicional=produto_deletado.observacoes_adicional,
-        imagem=produto_deletado.imagem,
+        # imagem=produto_deletado.imagem,
         inserido_por=produto_deletado.inserido_por
     )
  
 # EDICAO - PRODUTOS
 
 @router.patch("/editar_produto/{codigo}")
-async def editar_produto(codigo: int, dados: ProdutoPatch = Body(...), db: AsyncSession = Depends(get_db)):
+async def editar_produto(
+    codigo: int,
+    nome_basico: str = Form(...),
+    nome_modificador: str = Form(...),
+    descricao_tecnica: str = Form(None),
+    fabricante: str = Form(None),
+    unidade: str = Form(None),
+    preco_de_venda: float = Form(...),
+    fragilidade: bool = Form(...),
+    rua: int = Form(...),
+    coluna: int = Form(...),
+    andar: int = Form(...),
+    altura: float = Form(...),
+    largura: float = Form(...),
+    profundidade: float = Form(...),
+    peso: float = Form(...),
+    observacoes_adicional: str = Form(None),
+    imagem: UploadFile = File(None),
+    db: AsyncSession = Depends(get_db)
+):
     result = await db.execute(select(DimProduto).where(DimProduto.codigo == codigo))
-    produto_editado = result.scalar_one_or_none()
+    produto = result.scalar_one_or_none()
 
-    print('TESTEEEEEEEEEE\nEDIÇÃO\nTESTEEEEEEEEEE\n')
-    print(dados)
-
-    if not produto_editado:
+    if not produto:
         raise HTTPException(status_code=404, detail="Produto não encontrado")
 
-    for campo, valor in dados.dict(exclude_unset=True).items():
-        setattr(produto_editado, campo, valor)
+    produto.nome_basico = nome_basico
+    produto.nome_modificador = nome_modificador
+    produto.descricao_tecnica = descricao_tecnica
+    produto.fabricante = fabricante
+    produto.unidade = unidade
+    produto.preco_de_venda = preco_de_venda
+    produto.fragilidade = fragilidade
+    produto.rua = rua
+    produto.coluna = coluna
+    produto.andar = andar
+    produto.altura = altura
+    produto.largura = largura
+    produto.profundidade = profundidade
+    produto.peso = peso
+    produto.observacoes_adicional = observacoes_adicional
+
+    if imagem:
+        produto.imagem = await imagem.read()  # salva como bytes (bytea)
 
     await db.commit()
-    await db.refresh(produto_editado)
-    return produto_editado
+    await db.refresh(produto)
+    return {"success": True, "message": "Produto atualizado com sucesso - AEEE"}

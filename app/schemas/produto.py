@@ -64,7 +64,7 @@ class ProdutoDelete(BaseModel):
     profundidade: float
     peso: float
     observacoes_adicional: Optional[str] = None
-    imagem: Optional[bytes] = None
+    # imagem: Optional[bytes] = None
     inserido_por: str
 
 # EDITAR
