@@ -7,7 +7,7 @@ from fastapi import Body
 import base64
 
 from app.schemas.produto import ProdutoResponse, ProdutoDelete, ProdutoPatch
-from typing import List # < --- MEU
+from typing import List, Union
 
 router = APIRouter()
 
@@ -30,10 +30,13 @@ async def cadastrar_produto(
     peso: float = Form(...),
     observacoes_adicional: str = Form(None),
     inserido_por: str = Form(...),
-    imagem: UploadFile = File(None),
+    imagem: Union[UploadFile, str, None] = File(None),
     db: AsyncSession = Depends(get_db)
 ):
-    imagem_bytes = await imagem.read() if imagem else None
+    if isinstance(imagem, str) or imagem is None:
+        imagem_bytes = None
+    else:
+        imagem_bytes = await imagem.read()
 
     stmt = insert(DimProduto).values(
         codigo=codigo,

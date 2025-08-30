@@ -130,23 +130,50 @@ VALUES
 (NOW(), 20, 5, NOW() + INTERVAL '1 year', 25.00, 'Lote005', 'Fornecedor E');
 
 -- VIEW ESTOQUE REAL
-CREATE VIEW vw_EstoqueReal AS
+CREATE OR REPLACE VIEW vw_EstoqueReal AS
 WITH CTE_RecebimentosAgrupados AS (
-    SELECT CODIGO, DATA_RECEB, SUM(QUANT) AS TOTAL_QUANT
-    FROM FactRecebimento
-    GROUP BY CODIGO, DATA_RECEB
+    SELECT
+        CODIGO,
+        DATA_RECEB,
+        SUM(QUANT) AS TOTAL_QUANT_RECEB
+    FROM
+        FactRecebimento
+    GROUP BY
+        CODIGO,
+        DATA_RECEB
+),
+CTE_SaidasAgrupadas AS (
+    SELECT
+        CODIGO,
+        SUM(QUANT) AS TOTAL_QUANT_SAIDA
+    FROM
+        FactSaidas
+    GROUP BY
+        CODIGO
 ),
 CTE_QuantidadesMaisRecentes AS (
-    SELECT *,
-           ROW_NUMBER() OVER (PARTITION BY CODIGO ORDER BY DATA_RECEB DESC) AS RowNum
-    FROM CTE_RecebimentosAgrupados
+    SELECT
+        CODIGO,
+        TOTAL_QUANT_RECEB,
+        ROW_NUMBER() OVER (PARTITION BY CODIGO ORDER BY DATA_RECEB DESC) AS RowNum
+    FROM
+        CTE_RecebimentosAgrupados
 )
-SELECT 
+SELECT
+    dp.CODIGO AS codigo,
+    dp.NOME_BASICO AS nome_basico,
+    COALESCE(SUM(fr.QUANT), 0) - COALESCE(sa.TOTAL_QUANT_SAIDA, 0) AS quantidade,
+    COALESCE(qmr.TOTAL_QUANT_RECEB, 0) AS quant_recente
+FROM
+    DimProduto dp
+LEFT JOIN
+    FactRecebimento fr ON dp.CODIGO = fr.CODIGO
+LEFT JOIN
+    CTE_SaidasAgrupadas sa ON dp.CODIGO = sa.CODIGO
+LEFT JOIN
+    CTE_QuantidadesMaisRecentes qmr ON dp.CODIGO = qmr.CODIGO AND qmr.RowNum = 1
+GROUP BY
     dp.CODIGO,
     dp.NOME_BASICO,
-    COALESCE(SUM(fr.QUANT), 0) AS QUANTIDADE,
-    COALESCE(qmr.TOTAL_QUANT, 0) AS QUANT_RECENTE
-FROM DimProduto dp
-LEFT JOIN FactRecebimento fr ON dp.CODIGO = fr.CODIGO
-LEFT JOIN CTE_QuantidadesMaisRecentes qmr ON dp.CODIGO = qmr.CODIGO AND qmr.RowNum = 1
-GROUP BY dp.CODIGO, dp.NOME_BASICO, qmr.TOTAL_QUANT;
+    sa.TOTAL_QUANT_SAIDA,
+    qmr.TOTAL_QUANT_RECEB;

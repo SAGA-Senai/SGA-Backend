@@ -26,4 +26,4 @@ class CatalogoResponse(BaseModel):
     largura: Optional[float]
     profundidade: Optional[float]
     peso: Optional[float]
-    quantidade: int
+    quantidade: Optional[int]
