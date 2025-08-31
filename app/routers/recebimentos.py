@@ -6,6 +6,7 @@ from app.core.database import SessionLocal
 from app.models import DimProduto, FactRecebimento, FactCategoria, DimCategoria
 from typing import Optional
 from app.schemas.recebimentos import AddReceiptRequest, AddReceiptResponse, ReceiptResponse
+import base64
 
 router = APIRouter()
 
@@ -71,21 +72,11 @@ async def recebimento(db: AsyncSession = Depends(get_db), codigo: Optional[int] 
     # Converter para JSON
     dados = []
     for rec in recebimentos:
-        dados.append({
-            "DATA_RECEB": rec["data_receb"],
-            "CODIGO": rec["codigo"],
-            "NOME_BASICO": rec["nome_basico"],
-            "FABRICANTE": rec["fabricante"],
-            "FORNECEDOR": rec["fornecedor"],
-            "PRECO_DE_AQUISICAO": float(rec["preco_de_aquisicao"]),
-            "IMAGEM": rec["imagem"],
-            "QUANT": rec["quant"],
-            "LOTE": rec["lote"],
-            "VALIDADE": rec["validade"],
-            "PRECO_DE_VENDA": float(rec["preco_de_venda"]),
-            "FRAGILIDADE": rec["fragilidade"],
-            "CATEGORIA": rec["categoria"]
-        })
+        row = dict(rec)
+        if row.get('imagem') and isinstance(row.get('imagem'), (bytes, bytearray)):
+            row['imagem'] =  base64.b64encode(row["imagem"]).decode("utf-8")
+        row['fragilidade'] = 'SIM' if row['fragilidade'] else 'NÃO'
+        dados.append(row)
 
     return ReceiptResponse(
         dados=dados
@@ -128,20 +119,11 @@ async def recebimento(codigo: int, db: AsyncSession = Depends(get_db)):
     # Converter para JSON
     dados = []
     for rec in recebimentos:
-        dados.append({
-            "DATA_RECEB": rec.data_receb,
-            "CODIGO": rec.codigo,
-            "NOME_BASICO": rec.nome_basico,
-            "FABRICANTE": rec.fabricante,
-            "FORNECEDOR": rec.fornecedor,
-            "PRECO_DE_AQUISICAO": rec.preco_de_aquisicao,
-            "IMAGEM": rec.imagem,
-            "QUANT": rec.quant,
-            "LOTE": rec.lote,
-            "VALIDADE": rec.validade,
-            "PRECO_DE_VENDA": rec.preco_de_venda,
-            "FRAGILIDADE": rec.fragilidade
-        })
+        row = dict(rec)
+        if row.get('imagem') and isinstance(row.get('imagem'), (bytes, bytearray)):
+            row['imagem'] =  base64.b64encode(row["imagem"]).decode("utf-8")
+            row['fragilidade'] = 'SIM' if row['fragilidade'] else 'NÃO'
+        dados.append(row)
 
     return ReceiptResponse(
         dados=dados

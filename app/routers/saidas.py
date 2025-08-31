@@ -4,6 +4,7 @@ from sqlalchemy import select, func
 from app.core.database import SessionLocal
 from app.models import DimProduto, FactRecebimento, FactSaida
 from app.schemas.saidas import SaidaResponse, AddSaidaRequest, AddSaidaResponse, FornecedoresResponse, LotesResponse
+import base64
 
 router = APIRouter()
 
@@ -44,21 +45,12 @@ async def issue(db: AsyncSession = Depends(get_db)):
     
     # transforma em uma lista para evitar erro do pydantic
     dados = []
-    for row in saidas:
-        dados.append({
-            "codigo": row.codigo,
-            "nome_basico": row.nome_basico,
-            "fabricante": row.fabricante,
-            "fornecedor": row.fornecedor,
-            "preco_de_aquisicao": float(row.preco_de_aquisicao),
-            "imagem": row.imagem,
-            "quant": row.quant,
-            "data_saida": row.data_saida,
-            "lote": row.lote,
-            "validade": row.validade    ,
-            "preco_de_venda": float(row.preco_de_venda),
-            "fragilidade": row.fragilidade
-        })
+    for saida in saidas:
+        row = dict(saida)
+        if row.get('imagem') and isinstance(row.get('imagem'), (bytes, bytearray)):
+            row['imagem'] =  base64.b64encode(row["imagem"]).decode("utf-8")
+        row['fragilidade'] = 'SIM' if row['fragilidade'] else 'NÃO'
+        dados.append(row)
 
     return SaidaResponse(
         dados=dados
@@ -98,21 +90,12 @@ async def issue(codigo: int, db: AsyncSession = Depends(get_db)):
 
     # para Evitar erro do pydantic e transformar decimal em float
     dados = []
-    for row in saidas:
-        dados.append({
-            "codigo": row["codigo"],
-            "nome_basico": row["nome_basico"],
-            "fabricante": row["fabricante"],
-            "fornecedor": row["fornecedor"],
-            "preco_de_aquisicao": float(row["preco_de_aquisicao"]),
-            "imagem": row["imagem"],
-            "quant": row["quant"],
-            "data_saida": row["data_saida"],
-            "lote": row["lote"],
-            "validade": row["validade"],
-            "preco_de_venda": float(row["preco_de_venda"]),
-            "fragilidade": row["fragilidade"]
-        })
+    for saida in saidas:
+        row = dict(saida)
+        if row.get('imagem') and isinstance(row.get('imagem'), (bytes, bytearray)):
+            row['imagem'] =  base64.b64encode(row["imagem"]).decode("utf-8")
+        row['fragilidade'] = 'SIM' if row['fragilidade'] else 'NÃO'
+        dados.append(row)
 
     return SaidaResponse(
         dados=dados

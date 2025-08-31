@@ -6,6 +6,7 @@ from app.core.database import SessionLocal
 from app.models.produto import DimProduto
 from app.models import FactSaida, FactRecebimento
 from app.schemas.saldos import SaldosResponse
+import base64
 
 router = APIRouter()
 
@@ -81,7 +82,13 @@ async def balance(db: AsyncSession = Depends(get_db)):
         print('erro:', e)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Falha interna do servidor")
 
-    dados = [dict(row) for row in saldos]
+    dados = []
+    for saldo in saldos:
+        row = dict(saldo)
+        if row.get('imagem') and isinstance(row.get('imagem'), (bytes, bytearray)):
+            row['imagem'] =  base64.b64encode(row["imagem"]).decode("utf-8")
+        row['fragilidade'] = 'SIM' if row['fragilidade'] else 'NÃO'
+        dados.append(row)
 
     return SaldosResponse(
         dados=dados
@@ -99,7 +106,13 @@ async def balance(codigo: int, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Falha interna do servidor")
 
     # Para evitar erros do pydantic
-    dados = [dict(row) for row in saldos]
+    dados = []
+    for saldo in saldos:
+        row = dict(saldo)
+        if row.get('imagem') and isinstance(row.get('imagem'), (bytes, bytearray)):
+            row['imagem'] =  base64.b64encode(row["imagem"]).decode("utf-8")
+        row['fragilidade'] = 'SIM' if row['fragilidade'] else 'NÃO'
+        dados.append(row)
 
     return SaldosResponse(
         dados=dados
