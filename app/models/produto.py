@@ -1,10 +1,10 @@
-from sqlalchemy import Column, Integer, String, Float, Boolean, LargeBinary
+from sqlalchemy import Column, Integer, String, Float, Boolean, LargeBinary, BigInteger
 from app.core.database import Base
 
 class DimProduto(Base):
     __tablename__ = "dimproduto"
 
-    codigo = Column(Integer, primary_key=True, index=True)
+    codigo = Column(BigInteger, primary_key=True, index=True)
     nome_basico = Column(String(255), nullable=False)
     nome_modificador = Column(String(255), nullable=False)
     descricao_tecnica = Column(String)

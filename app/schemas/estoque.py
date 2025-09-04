@@ -13,6 +13,7 @@ class CatalogoResponse(BaseModel):
     nome_modificador: Optional[str]
     descricao_tecnica: Optional[str]
     fabricante: Optional[str]
+    categorias: Optional[str]
     observacoes_adicional: Optional[str]
     imagem: Optional[str]
     unidade: Optional[str]
