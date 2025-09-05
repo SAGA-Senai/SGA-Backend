@@ -118,7 +118,7 @@ async def tabela(db: AsyncSession = Depends(get_db)):
         recebimentos.append(dias[day][0])
         saidas.append(dias[day][1])
     # Formata os dias
-    days = [dia.strftime(format='%d/%m/%Y') for dia in dias.keys()]
+    days = [dia for dia in dias.keys()]
 
     return ChartResponse(
         categories=produtos,
