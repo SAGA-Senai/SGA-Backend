@@ -1,13 +1,14 @@
 from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import insert, select, delete
+from sqlalchemy import insert, select, delete, and_
 from app.models.produto import DimProduto
+from app.models.recebimento import FactRecebimento
 from app.models.categoria import FactCategoria, DimCategoria
 from app.core.database import get_db
-from fastapi import Body
+from datetime import date
 import base64
 
-from app.schemas.produto import ProdutoResponse, ProdutoDelete, ProdutoPatch
+from app.schemas.produto import ProdutoResponse, ProdutoDelete, LoteResponse
 from typing import List, Union
 
 router = APIRouter()
@@ -85,8 +86,9 @@ async def cadastrar_produto(
 
 # EDIÇÃO - VER PRODUTOS PROVISORIO 
 
-@router.get("/ver_produtos", response_model=List[ProdutoResponse])
-async def ver_produtos(db: AsyncSession = Depends(get_db)):
+@router.get("/ver_edicao", response_model=List[ProdutoResponse])
+async def ver_produtos_tela_edicao(db: AsyncSession = Depends(get_db)):
+
     query = select(DimProduto)
     result = await db.execute(query)
     produtos = result.scalars().all()
@@ -101,7 +103,7 @@ async def ver_produtos(db: AsyncSession = Depends(get_db)):
     return response
 
 
-@router.get("/ver_produtos/{codigo}")
+@router.get("/ver_edicao/{codigo}")
 async def ver_produto(codigo: int, db: AsyncSession = Depends(get_db)):
     # busca produto
     query_produto = select(DimProduto).where(DimProduto.codigo == codigo)
@@ -137,6 +139,55 @@ async def ver_produto(codigo: int, db: AsyncSession = Depends(get_db)):
         ],
         "categorias_produto": categorias_produto
     }
+
+@router.get("/ver_edicao/{codigo}/lotes", response_model=List[LoteResponse])
+async def ver_lotes_produto(codigo: int, db: AsyncSession = Depends(get_db)):
+    query = select(FactRecebimento).where(FactRecebimento.codigo == codigo)
+    result = await db.execute(query)
+    lotes = result.scalars().all()
+
+    if not lotes:
+        raise HTTPException(status_code=404, detail="Nenhum lote encontrado")
+
+    return [
+        {"lote": lote.lote, "fornecedor": lote.fornecedor, "data validade": lote.validade}
+        for lote in lotes
+    ]
+ 
+@router.get("/ver_edicao/{codigo}/lotes/{lote}", response_model=List[LoteResponse])
+async def ver_lotes_produto(codigo: int, lote: str, db: AsyncSession = Depends(get_db)):
+    query = select(FactRecebimento).where(and_(FactRecebimento.codigo == codigo, FactRecebimento.lote == lote))
+    result = await db.execute(query)
+    lotes = result.scalars().all()
+
+    if not lotes:
+        raise HTTPException(status_code=404, detail="Nenhum lote encontrado")
+
+    return [
+        {"lote": lote.lote, "fornecedor": lote.fornecedor, "validade": lote.validade}
+        for lote in lotes
+    ]
+
+@router.patch("/editar_lote/{codigo}/lotes/{lote}")
+async def editar_lote(
+    codigo: int,
+    lote: str,
+    fornecedor: str = Form(...),
+    validade: date = Form(...),
+    db: AsyncSession = Depends(get_db)
+):
+    result = await db.execute(select(FactRecebimento).where(and_(FactRecebimento.codigo == codigo, FactRecebimento.lote == lote)))
+    lote = result.scalar_one_or_none()
+
+    if not lote:
+        raise HTTPException(status_code=404, detail="Produto não encontrado")
+
+    lote.fornecedor = fornecedor
+    lote.validade = validade
+
+    await db.commit()
+    await db.refresh(lote)
+    return {"success": True, "message": "Lote atualizado com sucesso"}
 
 # DELETE - PRODUTOS
 

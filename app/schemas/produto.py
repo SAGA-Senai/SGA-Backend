@@ -86,3 +86,12 @@ class ProdutoPatch(BaseModel):
     observacoes_adicional: Optional[str] = None
     imagem: Optional[bytes] = None
     inserido_por: Optional[str] = None
+
+class LoteResponse(BaseModel):
+    lote: str
+    fornecedor: str
+    validade: Optional[date] = None
+
+class LotePatch(BaseModel):
+    validade: Optional[date] = None
+    fornecedor: Optional[str] = None
