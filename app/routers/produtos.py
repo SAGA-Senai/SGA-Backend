@@ -9,7 +9,7 @@ from datetime import date
 import base64
 
 from app.schemas.produto import ProdutoResponse, ProdutoDelete, LoteResponse
-from typing import List, Union
+from typing import List, Union, Optional
 
 router = APIRouter()
 
@@ -102,6 +102,7 @@ async def ver_produtos_tela_edicao(db: AsyncSession = Depends(get_db)):
     
     return response
 
+# ----------------------------------------------------------------------------------------------------------
 
 @router.get("/ver_edicao/{codigo}")
 async def ver_produto(codigo: int, db: AsyncSession = Depends(get_db)):
@@ -173,7 +174,7 @@ async def editar_lote(
     codigo: int,
     lote: str,
     fornecedor: str = Form(...),
-    validade: date = Form(...),
+    validade: Optional[date] = Form(None),
     db: AsyncSession = Depends(get_db)
 ):
     result = await db.execute(select(FactRecebimento).where(and_(FactRecebimento.codigo == codigo, FactRecebimento.lote == lote)))

@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import Optional
 from datetime import date
 
@@ -87,11 +87,14 @@ class ProdutoPatch(BaseModel):
     imagem: Optional[bytes] = None
     inserido_por: Optional[str] = None
 
+# RESPOSTA DO LOTE DE EDIÇÃO
+
 class LoteResponse(BaseModel):
     lote: str
     fornecedor: str
     validade: Optional[date] = None
 
+# EDITAR LOTE  
 class LotePatch(BaseModel):
     validade: Optional[date] = None
     fornecedor: Optional[str] = None

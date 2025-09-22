@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 from datetime import date
+from typing import Optional
 
 # necessário apenas se o método post de Recebimentos for usado
 # class Receiverequest(BaseModel):
@@ -9,7 +10,7 @@ class AddReceiptRequest(BaseModel):
     data_receb: date
     quant: int
     codigo: int
-    validade: date
+    validade: Optional[date] # <--- Precisa ser opcional para aceitar null
     preco_de_aquisicao: float
     lote: str
     fornecedor: str | None
