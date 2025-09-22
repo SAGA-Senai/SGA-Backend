@@ -1,10 +1,7 @@
 from fastapi import FastAPI
 from app.core.database import engine, Base
-from app.routers import auth, recebimentos, saidas, saldos
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import produtos
-from app.routers import estoque
-from app.routers import chart
+from app.routers import produtos, edicao,  estoque, chart, auth, recebimentos, saidas, saldos
 
 
 app = FastAPI()
@@ -23,8 +20,9 @@ async def startup():
 
 app.include_router(auth.router)
 app.include_router(produtos.router, prefix="/api")
+app.include_router(edicao.router)
 app.include_router(recebimentos.router)
 app.include_router(saidas.router)
 app.include_router(saldos.router)
 app.include_router(estoque.router)
-app.include_router(chart.router)
+app.include_router(chart.router)    

@@ -1,5 +1,3 @@
-
-
 -- Tabela: DIM_USUARIO
 CREATE TABLE DimUsuario (
     IDUsuario SERIAL PRIMARY KEY,
