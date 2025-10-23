@@ -10,6 +10,9 @@ h11==0.16.0
 httptools==0.6.4
 idna==3.10
 passlib==1.7.4
+python-jose[cryptography]==3.3.0
+python-multipart==0.0.20
+email-validator==2.1.1
 pydantic==2.11.7
 pydantic_core==2.33.2
 python-dotenv==1.1.1

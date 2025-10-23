@@ -6,8 +6,9 @@ class LoginRequest(BaseModel):
     senha: str
 
 class LoginResponse(BaseModel):
-    idusuario: int
-    nome: str
+    access_token: str
+    token_type: str = "bearer"
+    tipo_usuario: str
     email: str
 
 class RegisterRequest(BaseModel):
@@ -16,3 +17,18 @@ class RegisterRequest(BaseModel):
     senha: str
     datanasc: date | None = None
     dataentrada: date | None = None
+
+class CreateUserRequest(BaseModel):
+    nome: str
+    email: EmailStr
+    senha: str
+    datanasc: date | None = None
+    dataentrada: date | None = None
+
+class UserResponse(BaseModel):
+    idusuario: int
+    nome: str
+    email: str
+    datanasc: date | None = None
+    dataentrada: date | None = None
+    inserido_por: str | None = None
