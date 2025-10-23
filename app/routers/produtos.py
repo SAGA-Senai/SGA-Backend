@@ -1,9 +1,9 @@
 from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import insert
+from sqlalchemy import insert, select
 from app.models.produto import DimProduto
 from app.core.database import get_db
-from app.models.categoria import FactCategoria
+from app.models.categoria import FactCategoria, DimCategoria
 
 from typing import List, Union
 
@@ -79,3 +79,17 @@ async def cadastrar_produto(
         return {"success": True, "message": "Produto cadastrado"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    
+
+@router.get("/ver_categorias")
+async def ver_produto(db: AsyncSession = Depends(get_db)):
+    query_categorias = select(DimCategoria)
+    result_categorias = await db.execute(query_categorias)
+    todas_categorias = result_categorias.scalars().all()
+
+    return {
+        "todas_categorias": [
+            {"idcategoria": c.idcategoria, "categoria": c.categoria}
+            for c in todas_categorias
+        ]
+    }
